@@ -1,0 +1,25 @@
+1.手写自旋锁demo
+public class SplinLockDemo{
+	AtomicReference<Thread> atomicReference = new AtomicReference<>();
+	public void myLock(){
+		Thread thread = Thread.currentThread();
+		while(!atomicReference.compareAndSet(null,thread)){
+		
+		}
+	}
+	public void myUnLock(){
+		Thread thread = Thread.currentThread();
+		atomicReference.compareAndSet(thread,null);
+	}
+	
+	public static void main(String[] args){
+		SplinLockDemo splinLockDemo = new SplinLockDemo();
+		new Thread(()->{
+			splinLockDemo.myLock();
+		},"AA").start();
+		
+		new Thread(()->{
+			splinLockDemo.myLock();
+		},"BB").start();
+	}
+}
