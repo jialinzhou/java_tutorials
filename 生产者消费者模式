@@ -96,9 +96,10 @@ class MyResource{
 			if(returnValue){
 				System.out.println(Thread.currentThread().getName() + "\t 插入队列" + data + "成功");
 			}else{
-				System.out.println(Thread.currentThread().getName() + "\t 大老板叫停，表示FLAG=false,生产动作结束");
+				System.out.println(Thread.currentThread().getName() + "\t 插入队列" + data + "失败");
 			}
 		}
+		System.out.println(Thread.currentThread().getName() + "\t 大老板叫停，表示FLAG=false,生产动作结束");
 	}
 	
 	public void myConsumer(){
@@ -139,4 +140,3 @@ public class ProdConsumer_BlockingQueueDemo{
 		myResource.stop();
 	}
 }
-
