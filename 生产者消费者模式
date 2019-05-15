@@ -74,4 +74,69 @@ public class ProdConsumer_TraditionDemo{
 	}
 }
 
-2.
+2.阻塞队列的方式实现
+class MyResource{
+	//默认开启，进行生产消费
+	private volatile boolean FLAG = true;
+	private AtomicInteger atomicInteger = new AtomicInteger();
+	
+	private BlockingQueue<String> blockingQueue;
+	
+	public MyResource(BlockingQueue<String> blockingQueue){
+		this.blockingQueue = blockingQueue;
+		System.out.println(blockingQueue.getClass().getName());
+	}
+	
+	public void myProd(){
+		String data = null;
+		boolean returnValue;
+		while(FLAG){
+			data = atomicInteger.incrementAndGet() + "";
+			returnValue = blockingQueue.offer(data, 2, TimeUnit.SECONDS);
+			if(returnValue){
+				System.out.println(Thread.currentThread().getName() + "\t 插入队列" + data + "成功");
+			}else{
+				System.out.println(Thread.currentThread().getName() + "\t 大老板叫停，表示FLAG=false,生产动作结束");
+			}
+		}
+	}
+	
+	public void myConsumer(){
+		String result = null;
+		boolean returnValue;
+		while(FLAG){
+			result = blockingQueue.poll(2, TimeUnit.SECONDS);
+			if(null == result){
+				FLAG = false;
+				System.out.println(Thread.currentThread().getName() + "\t 超过2秒钟没有取到数据，退出");
+				return;
+			}
+			System.out.println(Thread.currentThread().getName() + "\t 消费队列" + result + "成功");
+		}
+	}
+	
+	public void stop(){
+		this.FLAG = false;
+	}
+}
+
+public class ProdConsumer_BlockingQueueDemo{
+	public static void main(String[] args){
+		MyResource myResource = new MyResource(new ArrayBlockingQueue<>(10));
+		new Thread(()->{
+			System.out.println(Thread.currentThread().getName() + "\t 生产线程启动");
+			myResource.myProd();
+		},"生产线程").start();
+		
+		new Thread(()->{
+			System.out.println(Thread.currentThread().getName() + "\t 生产线程启动");
+			myResource.myConsumer();
+		},"消费线程").start();
+		
+		TimeUnit.SECONDS.sleep(5);
+		
+		System.out.println("5秒钟时间到，大老板main线程叫停，活动结束");
+		myResource.stop();
+	}
+}
+
