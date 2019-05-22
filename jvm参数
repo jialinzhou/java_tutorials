@@ -1,0 +1,6 @@
+https://docs.oracle.com/en/java/javase/12/books.html
+
+Jvm常用参数：
+-Xms：初始堆内存，默认为物理内存1/64，等价于-XX:InitialHeapSize
+-Xmx：最大堆内存，默认为物理内存1/4，等价于-XX:MaxHeapSize
+-Xss：设置单个线程栈的大小，一般默认为512k-1024k，等价于-XX:ThreadStackSize，未设置情况下查询出是0表示默认大小跟平台相关。
