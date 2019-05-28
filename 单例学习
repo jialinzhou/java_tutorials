@@ -1,0 +1,107 @@
+package com.example.demo.singleton;
+
+/**
+ * Created by Admin on 2019/5/28.
+ */
+public class Singleton01 {
+    private static Singleton01 instance = new Singleton01();
+    private Singleton01(){}
+    public static Singleton01 getInstance(){
+        return instance;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Singleton01.getInstance());
+    }
+}
+
+
+==========================
+
+package com.example.demo.singleton;
+
+/**
+ * Created by Admin on 2019/5/28.
+ */
+public class Singleton02 {
+    private static Singleton02 instance = null;
+    static {
+        instance = new Singleton02();
+    }
+    private Singleton02(){}
+    public static Singleton02 getInstance(){
+        return instance;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Singleton02.getInstance());
+    }
+}
+=======================
+
+
+package com.example.demo.singleton;
+/**
+ * Created by Admin on 2019/5/28.
+ */
+public class Singleton03 {
+    private static class SingletonHolder{
+        private static Singleton03 instance = new Singleton03();
+    }
+    private Singleton03(){}
+    public static Singleton03 getInstance(){
+        return SingletonHolder.instance;
+    }
+
+    public static void main(String[] args) {
+        System.out.println(Singleton03.getInstance());
+    }
+}
+===================
+
+package com.example.demo.singleton;
+
+import org.omg.CORBA.PUBLIC_MEMBER;
+
+/**
+ * Created by Admin on 2019/5/28.
+ */
+public enum  Singleton04 {
+    INSTANCE;
+    public void whateverMethod(){}
+}
+============================
+
+package com.example.demo.singleton;
+
+import java.util.concurrent.atomic.AtomicReference;
+
+/**用CAS的好处在于不需要使用传统的锁机制来保证线程安全，CAS是一种基于忙等待的算法
+ * 依赖底层硬件的实现，相对于锁它没有线程切换和阻塞的额外消耗，可以支持较大的并行度。
+ * CAS的一个重要缺点在于如果忙等待一直执行不成功（一直在死循环中），会对cpu造成较大的
+ * 执行开销。
+ * 另外，如果N个线程同时执行到singletonCAS = new SingletonCAS();得时候，会有大量对象创建
+ * 很可能导致内存溢出。
+ * Created by Admin on 2019/5/28.
+ */
+public class SingletonCAS {
+    private static AtomicReference<SingletonCAS> instance = new AtomicReference<>();
+
+    private SingletonCAS(){}
+    public static SingletonCAS getInstance(){
+        for (;;){
+            SingletonCAS singletonCAS = instance.get();
+            if (null != singletonCAS){
+                return singletonCAS;
+            }
+            singletonCAS = new SingletonCAS();
+            if (instance.compareAndSet(null, singletonCAS)){
+                return singletonCAS;
+            }
+        }
+    }
+
+    public static void main(String[] args) {
+        System.out.println(SingletonCAS.getInstance());
+    }
+}
