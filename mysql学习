@@ -4,3 +4,18 @@ MVCC:多版本并发控制，这个技术可以让有着特定隔离级别的Inn
 consistent read:一致性读，这是一种读操作，基于时间点，使用快照信息展示查询结果，不管在同一时间其他事务做的改变。如果被查询的
 数据已经被其他事务改变，原始的数据可以通过undo log重新构建出来，这个技术可以避免加锁问题，加锁会降低并发，通过强制一个事务等待另一个事务完成。
 对于可重复读隔离级别，快照的时间点是第一次读操作的时间。对于读已提交隔离级别，每一次一致性读操作都会重置快照。
+
+InnoDB多版本：InnoDB是一个多版本的存储引擎：它保留改变的数据行旧的版本，可以支持并发和rollback。这些信息被存储在表空间中rollback segment数据结构。
+InnoDB使用rollback segment中的信息去执行事务回滚过程中的undo操作。它也使用这些信息构建行记录的早期版本支持一致性读。
+内部，InnoDB为存储在数据库中的每行数据增加三个字段。一个6字节的DB_TRX_ID字段表示上一个插入或更新行的事务标识符。同样，一个
+删除操作内部也被当做update，这种情况下行记录中特殊的1个bit被设置标记删除。每行记录也包含一个7字节的DB_ROLL_PTR字段，叫做roll pointer.
+这个roll pointer指向rollback segment中的一个undo log记录。如果这行记录被updated，这个undo log记录包含必要的信息可以重建出更新之前的记录内容。
+还有一个6字节的DB_ROW_ID字段包含一个row ID，当新行被插入时，它会单调递增。如果InnoDB自动的生成聚集索引（也就是默认主键），索引中就会
+包含这个row ID值。否则，DB_ROW_ID列不会出现在任何索引中。
+在rollback segment中的undo log被分成insert undo log和update undo log。insert undo log仅在事务回滚时需要，并且事务一提交就可以丢弃。
+update undo log也被用在一致性读，在一致性读中需要update undo log中的信息构建数据行的早期版本，只有在InnoDB为一致性读分配的快照中没有事务存在
+时，这些update undo log才可以被丢弃。
+经常的提交你的事务，包括那些只有一致性读的事务。否则，InnoDB不能丢弃update undo log中的数据，并且rollback segment可能变得更大，
+填满表空间。
+在InnoDB多版本方案中，当你通过sql语句删除一行记录时，该记录不会立刻从数据库中物理移除。只有当删除操作的update undo log被丢弃
+之后，InnoDB才会物理移除相应的行记录和索引记录。这个移除操作称为purge。它非常快，通常执行的顺序与删除的sql语句相同顺序。
