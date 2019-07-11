@@ -1,0 +1,25 @@
+
+主从复制：
+本章描述MySQL服务器之间的复制，基于binary log file position的方法。充当MySQL master的实例记录下updates和changes作为”events“
+到binary log中。根据数据库改变的不同，binary log中的信息以不同的logging formats存储。slave通过配置，从master中读取binary log
+并在slave的本地数据库中执行binary log中的events。
+每个slave接收到的都是完整的binary log内容。并有slave决定执行binary log中的哪些statements。除非你明确指定，否则binary log中
+的所有events都会在slave中执行。如果需要，你可以通过配置，让slave只执行特定的数据库或表相关的events。
+***但是禁止指定master去只记录特定的events。
+每个slave都保存了一份binary log的坐标：也就是从master读取哪个文件，执行到哪个位置。
+这就意味着可以有多个slave连接到一个master，并且每个slave执行到的binary log位置可能不一样。
+因为整个过程是由slave控制的，因此单个slave的连接和失连不会影响master的运行。并且由于slave记录当前执行到binary log的位置，因此当slave
+重新连接上master时可以继续进行复制。
+master和每个slave都必须配置一个唯一的server-id，此外，每个slave还必须配置有关master的host name,log file name,和读取的位置。
+
+一些通用的配置：
+1）对于master，必须开启binary logging，配置唯一的server-id。可能需要重启
+2）对于slave，配置唯一的server-id
+3）可选的：为slave创建一个用户，可以在从master读取binary log时进行认证。
+4）在创建一个数据快照或者开始复制过程之前，在master上，你需要记录binary log的当前位置。当配置slave是你需要这些信息，以便slave
+知道从binary log的什么位置开始执行events。
+5）如果你的master上已经有数据，并且想同步到slave，你需要创建一个数据快照并复制到slave。你当前正在使用什么存储引擎会影响你
+如何创建快照。当你正使用MyISAM，在允许继续执行statements之前，你必须在master停止处理statements并获取read-lock，之后获取当前的binary log坐标，并dump数据。
+如果你不停止执行statements，dump的数据和master的状态信息将不匹配，会导致与slave不一致。
+如果你正在使用Innodb，你不需要read-lock，一个事务足够长可以transfer数据。
+6）配置slave连接到master，例如host name,login credentials,binary log file name and position.
