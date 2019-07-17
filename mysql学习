@@ -55,3 +55,45 @@ repeatable read:
 1)使用普通索引 for update：只对查询出的记录加写锁。
 对于insert会加间隙锁，在根据索引查询的记录相邻前后加间隙锁，导致插入不成功，较远的位置insert不受影响
 2）不使用索引：对于整个表每行记录都加锁
+
+
+
+InnoDB Row Formats:
+一个表的行格式决定了它的行记录是如何物理存储的，从而可以影响查询和DML操作的性能。当单个硬盘页可以存放更多行记录，查询和
+索引查找会更快，buffer pool中就需要更少的缓存内存，更新值需要更少的I/O。
+每个表的数据是分页存储的。构成表的这些页是通过B-tree这种数据结构组织的。表数据和二级索引都是使用这种类型的数据结构。
+代表着整个表的B-tree索引被称作clustered index，它是通过主键列组织的。聚集索引数据结构的节点包含一行中所有列的值。
+二级索引数据结构包含索引列和主键列的值。
+可变长度的列对于B-tree索引存储列值的规则来说是个例外。可变长度的列太长了不适合存储在B-tree的页上，因此被存储在单独分配的
+硬盘页叫做overflow pages。这种列被称作off-page列。这些off-page列的值被存储在overflow page的单链表中。每个这种列都有它自己
+单独的singly-linked list.根据列长度的不同，在B-tree中存储整个列值或前缀，避免浪费存储。
+
+compact row format:
+compact行格式相比于redundant行格式减少了大概20%的行存储空间，但是对于一些操作以增加cpu的使用为代价。如果你的任务是被缓存命中率和
+硬盘速度限制，compact格式可能更快。如果你的任务的瓶颈是cpu速度，那么compact格式肯能更慢。
+使用compact行格式的表，在B-tree节点的索引记录中存储可变程度的列（varchar，varbinary，blob，text）的前768字节，剩下的存储在
+overflow page中。超过768字节的固定长度列也被当做可变长度列。例如char(255)，当字符集utf8mb4的最大字节长度大于3，则整个列值超过768字节。
+如果一个列的值小于768字节，就不会用到overflow page，在某种程度上节省了I/O，因为整个值存储在了B-tree的节点上。
+但是这样可能导致B-tree的节点充满了数据而不是key值，降低了效率。
+
+Pages,Extents,Segments,Tablespaces:
+每个表空间都是由数据库页组成的。每个表空间都有一样的page size.默认情况下，所有的表空间的page size都是16KB，你可以通过
+innodb_page_size设置page size为8或4KB，也可以提高到32或64KB。
+对于16KB的page,被分组构成1MB大小的extents（64个连续的16KB page,128个8KB page,256个4KB page）。
+对于32KB的page,extent的大小是2MB。对于64KB的page,extent的大小是4MB。在InnodB中，表空间里的文件是segment。
+对于表空间中的每一个segment,InnodB一次一个的分配前32个页。之后，InnoDB开始分配整个extent给segment。Innodb一次最多可以添加4个
+extent到一个大的segment，确保数据良好的有序性。
+在InnoDB中，为每个index分配2个segment。一个用于B-tree的非叶子节点，另一个是叶子节点。保持叶子节点在硬盘上的连续性可以有更好
+的I/O操作，因为这些叶子节点包含实际的表数据。
+有一些page包含其他page的bitmap,因此一些extent不能整个分配给segment，只能作为单独的page。
+
+
+对于4KB，8KB，16KB，32KB的page,maximum row length略小于page size的一半。例如，对于16KB page,最大行长度略小于8KB。
+但对于64KB的页，最大行长度略小于16KB。
+如果一行记录不超过最大行长度，则这行记录的所有列都存在page中。如果超过了最大行长度，对于变长的列被选择external off-page 存储直到行大小
+满足最大行长度限制。对于可变长度列的external off-page 存储根据row format的不同而不同。
+对于compact和redundant行格式：
+当一个可变长度的列被选择进行external off-page存储，InnodB存储这一列前768字节在数据页中，剩下的存在overflow page。除了这
+768字节的前缀，还有20字节的值存储这一列真实的长度并指向存储其余数据的overflow list。
+对于dynamic和compressed行格式：
+当一个变长的列选择external off-page存储，InnoDB在行中存储20字节的指针，剩下的存在overflow page。
