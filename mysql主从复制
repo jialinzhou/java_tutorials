@@ -23,3 +23,8 @@ master和每个slave都必须配置一个唯一的server-id，此外，每个sla
 如果你不停止执行statements，dump的数据和master的状态信息将不匹配，会导致与slave不一致。
 如果你正在使用Innodb，你不需要read-lock，一个事务足够长可以transfer数据。
 6）配置slave连接到master，例如host name,login credentials,binary log file name and position.
+Binary logging在一个语句或事务完成之后立刻完成，但是在任何锁被释放之前，任何commit完成之前。这确保日志是以commit的顺序被记录。
+对于非事务表的更新在执行完成之后立刻记录在binary log中。
+在一个未提交的事务中，所有对于事务表，比如InnoDB表的更新（update，delete，insert）都被缓存，直到服务器接收到commit语句。
+在这一刻，MySQLd写下整个事务到binary log中，在commit执行之前。
+对于非事务表的修改不能被回滚。如果一个包含对非事务表修改的事务被回滚，则整个事务最终都会通过ROLLBACK被记录下来，确保对于那些非事务表的修改可以被复制。
