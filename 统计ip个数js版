@@ -1,0 +1,1114 @@
+function isIp (sValue) {
+  return (isIPv4(sValue) || isIPv6(sValue))
+}
+
+function isIPv4 (sValue) {
+  return /^((25[0-5]|2[0-4]\d|[0-1]\d\d|[0-9]\d|\d)\.){3}(25[0-5]|2[0-4][0-9]|[0-1]\d\d|[0-9]\d|\d)$/.test(sValue)
+}
+
+function isIPv6 (sValue) {
+  var bOK;
+  var aIp = sValue.split("::");
+  if(aIp.length > 2)
+  {
+      return false;
+  }
+  if(aIp.length == 1)
+  {
+      var reg = (-1 != sValue.indexOf('.'))
+              ? /^([a-fA-F0-9]{1,4}:){6}(((25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)\.){3}(25[0-5]|2[0-4][0-9]|1\d\d|[1-9]\d|\d))$/
+              : /^([a-fA-F0-9]{1,4}:){7}[a-fA-F0-9]{1,4}$/;
+      return reg.test(sValue);
+  }
+  var sLeft = ("" == aIp[0]) ? "0" : aIp[0];
+  var sRight = ("" == aIp[1]) ? "0" : aIp[1];
+  var sIp = sLeft + ":" + sRight;
+  var reg = (-1 != sRight.indexOf('.'))
+          ? /^([a-fA-F0-9]{1,4}:){1,5}(((25[0-5]|2[0-4]\d|1\d\d|[1-9]\d|\d)\.){3}(25[0-5]|2[0-4][0-9]|1\d\d|[1-9]\d|\d))$/
+          : /^([a-fA-F0-9]{1,4}:){1,6}[a-fA-F0-9]{1,4}$/;
+  return reg.test(sIp);
+}
+
+/**
+ * 判断ip是哪一类ip
+ * @param {*} ipV4Address
+ * @return 1:A类；2：B类；3：C类；4：D类；5：E类
+ */
+function getIPv4Type (ipV4Address) {
+  if (ipV4Address == '255.255.255.255') {
+    return -1// 当前子网广播地址
+  } else if (compareIP(ipV4Address, '255.0.0.0') >= 1) {
+    return -1//
+  } else if (compareIP(ipV4Address, '240.0.0.0') >= 0) {
+    return 5// E类保留地址
+  } else if (compareIP(ipV4Address, '224.0.0.0') >= 0) {
+    return 4// D类地址 多点广播地址
+  } else if (compareIP(ipV4Address, '192.0.0.0') >= 0) {
+    return 3// C类地址
+  } else if (compareIP(ipV4Address, '128.0.0.0') >= 0) {
+    return 2// B类地址
+  } else if (compareIP(ipV4Address, '127.0.0.0') > 0) {
+    return -1// 本地地址
+  } else if (compareIP(ipV4Address, '1.0.0.0') >= 0) {
+    return 1// A类地址
+  } else if (compareIP(ipV4Address, '0.0.0.0') == 1) {
+    return -1// 省略主机网络号的局域网地址
+  } else if (compareIP == '0.0.0.0') {
+    return 0// 当前主机
+  } else {
+    return -2
+  }
+}
+
+/**
+ * 根据掩码位获取掩码
+ * @param mask 掩码位数，如"28"、"30"
+ * @return
+ */
+function getNetMask (mask) {
+  var inetMask = parseInt(mask)
+  if (inetMask > 32) {
+    return null
+  }
+  // 子网掩码为1占了几个字节
+  var num1 = inetMask / 8
+  // 子网掩码的补位位数
+  var num2 = inetMask % 8
+  var array = Array(0, 0, 0, 0)
+  for (var i = 0; i < num1; i++) {
+    array[i] = 255
+  }
+  for (var i = num1; i < 4; i++) {
+    array[i] = 0
+  }
+  for (var i = 0; i < num2; num2--) {
+    array[num1] += Math.pow(2, 8 - num2)
+  }
+  var netMask = array[0] + '.' + array[1] + '.' + array[2] + '.' + array[3]
+  return netMask
+}
+
+function getIPCount (fromIp, toIp) {
+  if (isIPv4(fromIp) && isIPv4(toIp)) {
+    return getIPv4Count(fromIp, toIp)
+  } else if (isIPv6(fromIp) && isIPv6(toIp)) {
+    return getIPv6Count(fromIp, toIp)
+  }
+}
+
+/**
+ * 获取有效的IP个数
+ * @param {*} fromIp
+ * @param {*} toIp
+ * @return -1 开始地址大于结束地址，0表示ip验证不通过 大于1表示获取到的IP个数
+ */
+function getIPv4Count (fromIp, toIp) {
+  var numberStart = changeIpV4ToNumber(fromIp)
+  var numberEnd = changeIpV4ToNumber(toIp)
+  if (numberStart <= numberEnd) {
+    return numberEnd - numberStart + 1
+  } else {
+    return -1
+  }
+}
+
+/**
+ * 获取有效的IPv6个数
+ * @param {*} fromIp
+ * @param {*} toIp
+ * @return -1 开始地址大于结束地址，0表示ip验证不通过 大于1表示获取到的IP个数
+ */
+function getIPv6Count (fromIp, toIp) {
+  var fromIpArr = getIPv6FromString(fromIp)
+  var toIpArr = getIPv6FromString(toIp)
+  var number = 0
+  for (var i = (fromIpArr.length - 1); i >= 0; i--) {
+    if (i == (fromIpArr.length - 1)) {
+      number = toIpArr[i] - fromIpArr[i] + 1
+    } else {
+      number = number + (toIpArr[i] - fromIpArr[i])*65536
+    }
+  }
+  if (number >= 0) {
+    return number
+  } else {
+    return -1
+  }
+}
+
+
+/**
+ * ipv4地址格式化成数组
+ * @param {*} ip
+ * @return 转成数值的数组
+ */
+function getIPv4FromString (ip) {
+  var IPv4 = ip.split('.')
+  var tmpIP = []
+  for (var i = 0; i < 4; i++) {
+    tmpIP[i] = parseInt(IPv4[i])
+  }
+  return tmpIP
+}
+
+/**
+ * ipv4转成数值
+ * @param {*} ip
+ */
+function changeIpV4ToNumber (ip) {
+  let IPArray = getIPv4FromString (ip)
+  if(IPArray.length!=4)
+	{
+		return 0;
+  }
+
+	return IPArray[0]*0x1000000+IPArray[1]*0x10000+IPArray[2]*0x100+IPArray[3];
+}
+
+/**
+ * ipv6地址格式化成数组
+ * @param {*} ip
+ * @return 转成数值的数组
+ */
+function getIPv6FromString (ip) {
+  var IPv6 = ip.split(':')
+  if (IPv6[IPv6.length - 1].indexOf('.') >= 0) {
+    var IPv4 = IPv6[IPv6.length - 1].split('.')
+    for (var i = 0; i < IPv4.length; i++) {
+      IPv4[i] = parseInt(IPv4[i]).toString(16)
+    }
+    var IPv6Tmp1, IPv6Tmp2
+    IPv6Tmp1 = (IPv4[0].length == 1 ? '0' + IPv4[0] : IPv4[0]) + (IPv4[1].length == 1 ? '0' + IPv4[1] : IPv4[1])
+    IPv6Tmp2 = (IPv4[2].length == 1 ? '0' + IPv4[2] : IPv4[2]) + (IPv4[3].length == 1 ? '0' + IPv4[3] : IPv4[3])
+    IPv6[IPv6.length - 1] = IPv6Tmp1
+    IPv6.push(IPv6Tmp2)
+  }
+  var tmpIP = Array(0, 0, 0, 0, 0, 0, 0, 0)
+  var len = IPv6.length
+  if (len < 8) {
+    for (var i = 0; IPv6[i] != ''; i++) {
+      tmpIP[i] = parseInt(IPv6[i], 16)
+    }
+    for (var i = 0; IPv6[len - 1 - i] != ''; i++) {
+      tmpIP[7 - i] = parseInt(IPv6[len - 1 - i], 16)
+    }
+  } else {
+    for (var i = 0; i < 8; i++) {
+      tmpIP[i] = parseInt(IPv6[i], 16)
+    }
+  }
+  return tmpIP
+}
+
+/**
+ * 根据ip每个位的数组拼成ip地址的格式
+ * @param {*} aIp
+ * @param {*} type 0：ipv4 1：ipv6 
+ * @return 数组转换成IP标准格式
+ */
+function aipToSip (aIp, type) {
+  let separator = ""
+  var ip = ''
+  if (type == 0) {
+    separator = "."
+    ip = aIp.join(separator)
+  } else {
+    separator = ":" 
+    let count = 0  
+    let newIp = aIp.reduce((pre, data, index, array) => {
+      //简化只能使用一次，不然不好区分
+      if (pre.indexOf("::") != -1) {
+        pre += data.toString(16) + separator
+      } else {
+        //如果值为0
+        if (data == 0) {
+          if (index < aIp.length -1) {
+            count ++
+          } else {
+            if (count >= 2) {
+              if (pre == "") {
+                pre = ":"
+              } 
+              pre += "::"//必须多加一个”:“后面要截取
+            } else {
+              pre += `0${separator}`
+            }
+          }
+        } else {
+          if (count >= 2) {
+            if (pre == "") {
+              pre = ":" 
+            }
+            pre += ":"
+          } else if (count == 1) {
+            pre += `0${separator}` 
+          }
+          count = 0
+          pre += data.toString(16) + separator
+        }
+      }
+      
+      return pre  
+    }, "") 
+
+    ip = newIp.charAt(newIp.length-1) == separator ? newIp.substring(0, newIp.length-1) : newIp
+  }
+ 
+  return ip
+}
+
+/**
+ * IP地址比较 0表示两个ip相等，1表示ip1>ip2 -1表示ip1<ip2
+ * @param {*} IP1
+ * @param {*} IP2
+ */
+function compareIP (IP1, IP2) {
+  var Result = 0
+  if (isIPv4(IP1) && isIPv4(IP2)) {
+    var IP1Arr = getIPv4FromString(IP1)
+    var IP2Arr = getIPv4FromString(IP2)
+  } else if (isIPv6(IP1) && isIPv6(IP2)) {
+    var IP1Arr = getIPv6FromString(IP1)
+    var IP2Arr = getIPv6FromString(IP2)
+  } else {
+    // 表示不同类型无法比较
+    return -2
+  }
+  for (var i = 0; i < IP1Arr.length; i++) {
+    if (IP1Arr[i] < IP2Arr[i]) {
+      Result = -1
+      break
+    } else if (IP1Arr[i] > IP2Arr[i]) {
+      Result = 1
+      break
+    }
+  }
+  return Result
+}
+
+/**
+ * IP范围地址比较1表示IPRange1与IPRange2有交集 -1表示IPRange1与IPRange2无交集
+ * @param {*} IPRange1
+ * @param {*} IPRange2
+ */
+function compareIPRange (IPRange1, IPRange2) {
+  var aTmpIP1 = IPRange1.split('-')
+  var startIp1 = aTmpIP1[0]
+  var endIp1 = aTmpIP1[1]
+  var aTmpIP2 = IPRange2.split('-')
+  var startIp2 = aTmpIP2[0]
+  var endIp2 = aTmpIP2[1]
+  if ((compareIP(startIp1, endIp2) == 1) || (compareIP(startIp1, endIp2) == -2) || (compareIP(endIp1, startIp2) == -2) || (compareIP(endIp1, startIp2) == -1)) {
+    return -1
+  } else {
+    return 1
+  }
+}
+
+/**
+ * 查询某个ip是否在某个ip断内
+ * @param {*} IP
+ * @param {*} Range
+ */
+function iPIsInIpRange (ip, range) {
+  var aTmp = range.split('-')
+  var start = aTmp[0]
+  var end = aTmp[1]
+  if ((compareIP(ip, end) > 0) || (compareIP(ip, start) < 0)) {
+    return false
+  } else {
+    return true
+  }
+}
+
+/**
+ * 查询某个ip是否存在
+ * @param {*} IP
+ * @param {*} RangeList
+ */
+function iPIsInIpRangeList (ip, ipList, index) {
+  var isIn = false
+  for (var i = 0; i < ipList.length; i++) {
+    if (index && index < ipList.length && index == i) {
+      break
+    }
+    var ipRangeExsit = ipList[i].ipRange
+    if (ipRangeExsit.length > 0) {
+      for (var j = 0; j < ipRangeExsit.length; j++) {
+        isIn = iPIsInIpRange(ip, ipRangeExsit[j])
+        if (isIn) {
+          break
+        }
+      }
+    }
+    if (isIn) {
+      break
+    }
+  }
+  return isIn
+}
+
+/**
+ * 掩码地址比较 0表示两个ip相等，1表示ip1>ip2 -1表示ip1<ip2
+ * @param {*} ip1
+ * @param {*} ip2
+ * @return 1表示两个地址有交集 -1表示两个地址没有交集
+ */
+function compareWildcard (ip1, ip2) {
+  var aTmpIP1 = ip1.split('/')
+  var ipAddress1 = aTmpIP1[0]
+  var mask1 = aTmpIP1[1]
+  var aTmpIP2 = ip2.split('/')
+  var ipAddress2 = aTmpIP2[0]
+  var mask2 = aTmpIP2[1]
+  var ipRange1 = getIpSection(ipAddress1, mask1)
+  var ipRange2 = getIpSection(ipAddress2, mask2)
+  if (compareIPRange(ipRange1, ipRange2) == 1) {
+    return 1
+  } else {
+    return -1
+  }
+}
+
+/**
+ * 根据ip和掩码位获取IP段
+ * @param ip
+ * @param mask
+ * @return ip段
+ */
+function getIpSection (ip, mask) {
+  if (ip.indexOf(':') == -1) { // ipv4
+    if (mask == 32) {
+      return ip + '-' + ip
+    }
+    return getIpv4Section(ip, mask)
+  } else {
+    if (mask == 128) {
+      return ip + '-' + ip
+    }
+    return getIpv6Section(ip, mask)
+  }
+}
+
+/**
+ * 根据ipv4地址和掩码位获取IP段
+ * @param ip
+ * @param mask
+ * @return ip段
+ */
+function getIpv4Section (ipv4, mask) {
+  var step = 8 // 一个单元中包含8个位
+  var unit = 4 // 4个单元
+  var radix = 10 // 十进制
+  var separator = '.' // 分隔符
+  var mask = parseInt(mask)
+  if (mask < 1 || mask > 31) {
+    return false
+  }
+  var aip = ipv4.split(separator)
+  if (aip.length != unit) {
+    return false
+  }
+  var afrom2 = []
+  var ato2 = []
+  for (var i = 0; i < unit; i++) {
+    var naip = parseInt(aip[i])
+    if (naip < 0 || naip > 255) {
+      return false
+    }
+    var str = naip.toString(2)
+    var len = str.length
+    var diff = step - len + 1
+    if (diff > 1) {
+      afrom2[i] = Array(diff).join('0') + str
+      ato2[i] = Array(diff).join('0') + str
+    } else {
+      afrom2[i] = str
+      ato2[i] = str
+    }
+  }
+  var index = parseInt(mask / step)
+  var nlast = mask % step
+  var indexfrom = afrom2[index].split('')
+  var indexto = ato2[index].split('')
+  for (var i = nlast; i < step; i++) {
+    indexfrom[i] = '0'
+    indexto[i] = '1'
+  }
+  afrom2[index] = indexfrom.join('')
+  ato2[index] = indexto.join('')
+  for (var i = index + 1; i < unit; i++) {
+    afrom2[i] = '00000000'
+    ato2[i] = '11111111'
+  }
+  for (var i = 0; i < unit; i++) {
+    afrom2[i] = parseInt(afrom2[i], 2)
+    ato2[i] = parseInt(ato2[i], 2)
+  }
+
+  //return afrom2.join(separator) + '-' + ato2.join(separator)
+  return `${aipToSip(afrom2, 0)}-${aipToSip(ato2, 0)}`
+}
+
+/**
+ * 根据ipv6地址和掩码位获取IP段
+ * @param ip
+ * @param mask
+ * @return ip段
+ */
+function getIpv6Section (ipv6, mask) {
+  var step = 16 // 一个单元中包含16个位
+  var unit = 8 // 8个单元
+  var radix = 16 // 十六进制
+  var separator = ':' // 分隔符
+  var mask = parseInt(mask)
+  if (mask < 1 || mask > 127) {
+    return false
+  }
+  if (!ipv6) {
+    return false
+  }
+  //var aipunit = ipv6.split(separator)
+  let  aipunit = getIPv6FromString(ipv6)
+  var afrom2 = []
+  var ato2 = []
+  for (var i = 0; i < unit; i++) {
+    //var naip = parseInt(aipunit[i], radix)
+    //var str = naip.toString(2)
+    var str = aipunit[i].toString(2)
+    var len = str.length
+    var diff = step - len + 1 // 计算 需要另外添加多少个0
+    if (diff > 1) {
+      afrom2[i] = Array(diff).join('0') + str
+      ato2[i] = Array(diff).join('0') + str
+    } else {
+      afrom2[i] = str
+      ato2[i] = str
+    }
+  }
+  var index = parseInt(mask / step)
+  var nlast = mask % step
+  var indexfrom = afrom2[index].split('')
+  var indexto = ato2[index].split('')
+  for (var i = nlast; i < step; i++) {
+    indexfrom[i] = '0'
+    indexto[i] = '1'
+  }
+  afrom2[index] = indexfrom.join('')
+  ato2[index] = indexto.join('')
+  for (var i = index + 1; i < unit; i++) {
+    afrom2[i] = '0000000000000000'
+    ato2[i] = '1111111111111111'
+  }
+  for (var i = 0; i < unit; i++) {
+    afrom2[i] = parseInt(afrom2[i], 2).toString(radix)
+    ato2[i] = parseInt(ato2[i], 2).toString(radix)
+  }
+
+  //return afrom2.join(separator) + '-' + ato2.join(separator)
+  return aipToSip(afrom2, 1) + '-' + aipToSip(ato2, 1)
+}
+
+/**
+ * 查找ip的上一个地址
+ * @param {*} ip
+ * @return ip的下一个ip
+ */
+function findPrevIp (ip) {
+  if (isIPv4(ip)) {
+    return findPrevIPv4(ip)
+  }
+  if (isIPv6(ip)) {
+    return findPrevIPv6(ip)
+  }
+  return null
+}
+
+/**
+ * 查找ipv4的上一个地址
+ * @param {*} ip
+ * @return ipv4的下一个ip
+ */
+function findPrevIPv4 (ip) {
+  if (ip == '') {
+    return null
+  }
+  var bytesIp = getIPv4FromString(ip)
+  for (var i = (bytesIp.length - 1); i >= 0; i--) {
+    if (i == (bytesIp.length - 1)) {
+      if (bytesIp[i] <= 0) {
+        bytesIp[i] = 255
+      } else {
+        bytesIp[i]--
+        break
+      }
+    } else {
+      if (bytesIp[i] <= 0) {
+        bytesIp[i] = 255
+      } else {
+        bytesIp[i]--
+        break
+      }
+    }
+  }
+  return aipToSip(bytesIp, 0)
+}
+
+/**
+ * 查找ipv6的上一个地址
+ * @param {*} ip
+ * @return ipv4的下一个ip
+ */
+function findPrevIPv6 (ip) {
+  if (ip == '') {
+    return null
+  }
+  var bytesIp = getIPv6FromString(ip)
+  for (var i = (bytesIp.length - 1); i >= 0; i--) {
+    if (i == (bytesIp.length - 1)) {
+      if (bytesIp[i] <= 0) {
+        bytesIp[i] = 65535
+      } else {
+        bytesIp[i]--
+        break
+      }
+    } else {
+      if (bytesIp[i] <= 0) {
+        bytesIp[i] = 65535
+      } else {
+        bytesIp[i]--
+        break
+      }
+    }
+  }
+  return aipToSip(bytesIp, 1)
+}
+
+/**
+ * 查找ip的下一个地址
+ * @param {*} ip
+ * @return ip的下一个ip
+ */
+function findNextIp (ip) {
+  if (isIPv4(ip)) {
+    return findNextIPv4(ip)
+  }
+  if (isIPv6(ip)) {
+    return findNextIPv6(ip)
+  }
+  return null
+}
+
+/**
+ * 查找ipv4的下一个地址
+ * @param {*} ip
+ * @return ipv4的下一个ip
+ */
+function findNextIPv4 (ip) {
+  if (ip == '') {
+    return null
+  }
+  var bytesIp = getIPv4FromString(ip)
+  for (var i = (bytesIp.length - 1); i >= 0; i--) {
+    if (i == (bytesIp.length - 1)) {
+      if (bytesIp[i] >= 255) {
+        bytesIp[i] = 0
+      } else {
+        bytesIp[i]++
+        break
+      }
+    } else {
+      if (bytesIp[i] >= 255) {
+        bytesIp[i] = 0
+      } else {
+        bytesIp[i]++
+        break
+      }
+    }
+  }
+  return aipToSip(bytesIp, 0)
+}
+
+/**
+ * 查找ipv6的下一个地址
+ * @param {*} ip
+ * @return ipv4的下一个ip
+ */
+function findNextIPv6 (ip) {
+  if (ip == '') {
+    return null
+  }
+  var bytesIp = getIPv6FromString(ip)
+  for (var i = (bytesIp.length - 1); i >= 0; i--) {
+    if (i == (bytesIp.length - 1)) {
+      if (bytesIp[i] >= 65535) {
+        bytesIp[i] = 0
+      } else {
+        bytesIp[i]++
+        break
+      }
+    } else {
+      if (bytesIp[i] >= 65535) {
+        bytesIp[i] = 1
+      } else {
+        bytesIp[i]++
+        break
+      }
+    }
+  }
+  return aipToSip(bytesIp, 1)
+}
+
+/**
+ * 求例外IP的合集
+ * @param {*} ipException 数组
+ * @return 所有的例外ip的集合 数组
+ */
+function getAllException (ipException) {
+  var allIpException = []
+  if (ipException == '') {
+    return allIpException
+  }
+  for (var i = 0; i < ipException.length; i++) {
+    if (ipException[i] != '') {
+      var ipExceptionArr = ipException[i].split('-')
+      var start = ipExceptionArr[0]
+      var end = ipExceptionArr[1]
+      if (allIpException.length == 0) {
+        allIpException.push(ipException[i])
+      } else {
+        for (var j = 0; j < allIpException.length; j++) {
+          var ipExceptionExsit = allIpException[j].split('-')
+          var min = ipExceptionExsit[0]
+          var max = ipExceptionExsit[1]
+          if (compareIP(end, min) == -1 || compareIP(start, max) == 1) {
+            allIpException.push(ipException[i])
+            break;
+          } else if (compareIP(start, min) == -1 && compareIP(end, min) == 1 && compareIP(end, max) == -1) { // 第二个例外ip和第一例外ip有交集
+            allIpException[j] = start + '-' + max
+            break;
+          } else if (compareIP(start, min) <= 0 && compareIP(end, max) >= 1) {
+            allIpException[j] = start + '-' + end
+            break;
+          } else if (compareIP(start, min) >= 0 && compareIP(end, max) <= 0) { // 最小值比最大值大
+            // 保持原来的值
+          } else if (compareIP(start, min) == 1 && compareIP(start, max) == -1 && compareIP(end, max) == 1) {
+            allIpException[j] = min + '-' + end
+            break;
+          }
+        }
+      }
+    }
+  }
+  return allIpException
+}
+
+/**
+ * 根据ip类型，ip地址，例外IP 获取有效的ip段
+ * @param {*} addressType
+ * @param {*} ip 字符串
+ * @param {*} ipException 字符串
+ * @return 有效的ip范围
+ */
+function getIpRang (addressType, ip, ipException) {
+  var list = []
+  if (ip == null || ip == '' || addressType < 0 || addressType > 1) {
+    return list
+  }
+  var ipExceptionTmp = []
+  // 掩码形式全部转换为段的形式
+  if (addressType == 1) {
+    var ipAddressArr = ip.split('/')
+    var ipAddress = ipAddressArr[0]
+    var mask = ipAddressArr[1]
+    var ipRange = getIpSection(ipAddress, mask)
+    list.push(ipRange)
+    if (!ipException) {
+      return list
+    }
+    if (typeof ipException === 'string') {
+      var aExcludeAddr = JSON.parse(ipException)
+    } else {
+      var aExcludeAddr = ipException
+    }
+    for (var i = 0; i < aExcludeAddr.length; i++) {
+      if (aExcludeAddr[i] != '') {
+        var ipExceptionArr = aExcludeAddr[i].split('/')
+        var ipExceptionStr = ipExceptionArr[0]
+        var exceptionMask = ipExceptionArr[1]
+        var ipExceptionRange = getIpSection(ipExceptionStr, exceptionMask)
+        ipExceptionTmp.push(ipExceptionRange)
+      }
+    }
+  } else { // IP范围形式
+    list.push(ip)
+    if (!ipException) {
+      return list
+    }
+    if (typeof ipException === 'string') {
+      var aExcludeAddr = JSON.parse(ipException)
+    } else {
+      var aExcludeAddr = ipException
+    }
+    ipExceptionTmp = aExcludeAddr
+  }
+  // 所有的例外ip取交集
+  var allException = getAllException(ipExceptionTmp)
+  for (var i = 0; i < allException.length; i++) {
+    var ipExceptionArr = allException[i].split('-')
+    var expStart = ipExceptionArr[0]
+    var expEnd = ipExceptionArr[1]
+    for (var j = 0; j < list.length; j++) {
+      var listArr = list[j].split('-')
+      var rangeStart = listArr[0]
+      var rangeEnd = listArr[1]
+      if (compareIP(expStart, rangeStart) < 0 && compareIP(expEnd, rangeStart) > 0 && compareIP(expEnd, rangeEnd) < 0) {
+        list[j] = findNextIp(expEnd) + '-' + rangeEnd
+        break
+      } else if (compareIP(expStart, rangeStart) > 0 && compareIP(expEnd, rangeEnd) < 0) {
+        list[j] = rangeStart + '-' + findPrevIp(expStart)
+        list.push(findNextIp(expEnd) + '-' + rangeEnd)
+        break
+      } else if (compareIP(expStart, rangeStart) == 0 && compareIP(expEnd, rangeEnd) < 0) {
+        list[j] = findNextIp(expEnd) + '-' + rangeEnd
+        break
+      } else if (compareIP(expStart, rangeStart) > 0 && compareIP(expEnd, rangeEnd) == 0) {
+        list[j] = rangeStart + '-' + findPrevIp(expStart)
+        break
+      } else if (compareIP(expStart, rangeStart) <= 0 && compareIP(expEnd, rangeEnd) >= 0) {
+        list.splice(j, 1)
+        break
+      } else if (compareIP(expStart, rangeStart) > 0 && compareIP(expStart, rangeEnd) < 0 && compareIP(expEnd, rangeEnd) > 0) {
+        list[j] = rangeStart + '-' + findPrevIp(expStart)
+        break
+      }
+    }
+  }
+
+  return list
+}
+
+/**
+ * ip格式标准化
+ * @param {*} ip
+ * @return 标准化后的ip格式
+ */
+function ipForm (ip) {
+  let separator = ''
+  let arrIp = []
+  let ipType = 0
+
+  if (isIPv4(ip)) {  
+    arrIp = getIPv4FromString (ip)
+  } else if(isIPv6(ip)) {
+    ipType = 1
+    arrIp = getIPv6FromString (ip)   
+  }
+
+  return aipToSip(arrIp, ipType)
+}
+
+/**
+ * ip段格式标准化
+ * @param {*} ipRange
+ * @return 标准化后的ip段格式
+ */
+function ipRangeForm (ipRange) {
+  const [startIp, endIp] = ipRange.split("-")
+
+  return `${ipForm(startIp)}-${ipForm(endIp)}`
+}
+
+/**
+ * ip段格式标准化
+ * @param {*} ipMask
+ * @return 标准化后的ip段格式
+ */
+function ipMaskForm (ipMask) {
+  const [ip, mask] = ipMask.split("/")
+
+  return `${ipForm(ip)}/${mask}`
+}
+
+/**
+ * 判断ip段的有效性，ip段是否在同网段，掩码范围为（16-32/120-128）
+ * @param {*} startIp
+ * @param {*} endIp
+ * @return 0：表示验证成功 1:其实IP大于结束IP 2：IPv4地址范围错误 3：IPv6达到最大个数 
+ */
+function isValidRange (startIp, endIp) {
+  //ipv4掩码范围为16-32，ipv6个数是65535，掩码范围定位121-128
+  if (isIPv4(startIp) && isIPv4(endIp)) {
+    let minMask = 16
+    let ipRangeStart = getIpSection(startIp, minMask)
+    let ipRangeEnd = getIpSection(endIp, minMask)
+    if(compareIP(startIp, endIp) > 0) {
+      return 1
+    }
+    if(ipRangeStart != ipRangeEnd) {
+      return 2
+    }
+  } else if(isIPv6(startIp) && isIPv6(endIp)) {
+    let ipCount = getIPv6Count(startIp, endIp)
+    if (ipCount == -1) {
+      return 1
+    }
+    if (ipCount > 65535) {
+      return 3
+    }
+  }
+  return 0
+}
+
+function transMaskNum(sIntValue)
+{
+  var aMask = {
+    "0.0.0.0": "0",
+    "128.0.0.0": "1", "255.128.0.0": "9", "255.255.128.0": "17", "255.255.255.128": "25",
+    "192.0.0.0": "2", "255.192.0.0": "10", "255.255.192.0": "18", "255.255.255.192": "26",
+    "224.0.0.0": "3", "255.224.0.0": "11", "255.255.224.0": "19", "255.255.255.224": "27",
+    "240.0.0.0": "4", "255.240.0.0": "12", "255.255.240.0": "20", "255.255.255.240": "28",
+    "248.0.0.0": "5", "255.248.0.0": "13", "255.255.248.0": "21", "255.255.255.248": "29",
+    "252.0.0.0": "6", "255.252.0.0": "14", "255.255.252.0": "22", "255.255.255.252": "30",
+    "254.0.0.0": "7", "255.254.0.0": "15", "255.255.254.0": "23", "255.255.255.254": "31",
+    "255.0.0.0": "8", "255.255.0.0": "16", "255.255.255.0": "24", "255.255.255.255": "32"
+};
+    var tmpValue = parseInt(sIntValue).toString();
+    for (var sIpStr in aMask)
+    {
+         if (aMask[sIpStr] == tmpValue)
+         {
+             return sIpStr;
+         }
+    }
+
+    return null;
+}
+
+function transitIPv4 (sIPAddr, sMask) {
+  var aIPAddr = sIPAddr.split('.')
+  var aMask = transMaskNum(sMask).split('.')
+  var aTempData = []
+  for (var i = 0; i < 4; i++) {
+    aTempData.push(aIPAddr[i] & aMask[i])
+  }
+  return aTempData.join('.')
+}
+
+function addZero (num) {
+  var sZeroStr = ''
+  for (var i = 1; i < num + 1; i++) {
+    sZeroStr += '0'
+    if (i % 4 == 0) {
+      sZeroStr += ':'
+    }
+  }
+  return sZeroStr
+}
+
+function initaddr (ipaddrs, mask, bCompleteAddress) {
+  var sIPArray = "";
+  for (var i = 0; i < ipaddrs.length; i++)
+        {
+            sIPArray += ipaddrs[i];
+        }
+        if(sIPArray.charAt(sIPArray.length - 1) == ':')
+        {
+            sIPArray = sIPArray.substr(0, sIPArray.length - 1);
+        }
+        
+        return changeIp(sIPArray, mask);
+    }
+
+    function changeIp(str, mask, bCompleteAddress)
+    {
+        var aData = str.split(':');
+        var nNum = parseInt(mask) / 16;
+        var sDest = '',
+            oZero = {
+                nStart: -1,
+                nCount: 1,
+                nMaxCount: 0,
+                nMaxStart: -1
+            },
+            nFlag = 0;
+        if(nNum == parseInt(nNum))
+        {
+            aData.splice(nNum);
+        }
+        else
+        {
+            nNum = Math.ceil(nNum);
+            aData.splice(nNum);
+            var aTemp = aData[nNum - 1].split('');
+            var sBinarySystem = '';
+            for(var i = 0; i < 4; i++)
+            {
+                var str = parseInt(aTemp[i], 16).toString(2);
+                while(str.length < 4)
+                {
+                    str = '0' + str;
+                }
+                sBinarySystem += str;
+            }
+            sBinarySystem = sBinarySystem.substr(0, 16 - (16 * nNum - mask));
+            while(sBinarySystem.length < 16)
+            {
+                sBinarySystem += '0';
+            }
+            var sReplace = parseInt(sBinarySystem, 2).toString(16).toLocaleUpperCase();
+            aData[nNum - 1] = sReplace == '0' ? "0000" : sReplace;
+        }
+        while(aData.length < 8)
+        {
+            aData.push('0000');
+        }
+        
+        if(bCompleteAddress)
+        {
+            return aData.join(":").toUpperCase();
+        }
+        
+        for(var i = 0; i < aData.length; i++)
+        {
+            if("0000" == aData[i] && "0000" == aData[i + 1])
+            {
+                oZero.nCount++;
+                if(2 == oZero.nCount)
+                {
+                    oZero.nStart = i;
+                }
+            }
+            else
+            {
+                oZero.nCount = 1;
+            }
+            if(oZero.nCount > oZero.nMaxCount)
+            {
+                oZero.nMaxCount = oZero.nCount;
+                oZero.nMaxStart = oZero.nStart;
+            }
+        }
+        if(oZero.nMaxCount > 1)
+        {
+            aData.splice(oZero.nMaxStart, oZero.nMaxCount, '@');
+        }
+        for(var j = 0; j < aData.length; j++)
+        {
+            if(aData[j] == "0000")
+            {
+                aData[j] = "0";
+            }
+            else
+            {
+                aData[j] = aData[j].replace(/^0*/g, "");
+            }
+        }
+        sDest = aData.join(":");
+        if(sDest == "@")
+        {
+            sDest = sDest.replace("@", "::");
+        }
+        if(sDest.search('@') != -1)
+        {
+            if(sDest.length - 1 == sDest.search('@') || 0 == sDest.search('@'))
+            {
+                sDest = sDest.replace("@", ":");
+            }
+            else
+            {
+                sDest = sDest.replace("@", "");
+            }
+        }
+	
+        return sDest.toUpperCase();
+    }
+
+function transitIPv6(ipaddr, mask, bCompleteAddress)
+    {
+        if(mask == "" || !isIPv6(ipaddr))
+        {
+            return;
+        }
+        var ipaddrs = ipaddr.split(":");
+        
+        if(isIPv4(ipaddrs[ipaddrs.length - 1]))
+        {
+            var sIPv6 = "";
+            var aIPv4 = ipaddrs[ipaddrs.length - 1].split(".");
+            ipaddrs.splice(ipaddrs.length - 1, 1);
+            for(var k = 0; k < aIPv4.length; k++)
+            {
+                var nAddr4ip = parseInt(aIPv4[k], 10);
+                var nAddrtemp = nAddr4ip.toString(16);
+                if(nAddrtemp.length == 1)
+                {
+                    nAddrtemp = "0" + nAddrtemp;
+                }
+                sIPv6 += nAddrtemp;
+                if(k == 1 || k == 3)
+                {
+                    ipaddrs.push(sIPv6);
+                    sIPv6 = "";
+                }
+            }
+        }
+        if(ipaddrs.length < 8)
+        {
+            var count = 0;
+            for(var i = 0; i < ipaddrs.length; i++)
+            {
+                if(ipaddrs[i] == "")
+                {
+                    if(count == 1)
+                    {
+                        ipaddrs[i] = addZero(4);
+                        continue;
+                    }
+                    ipaddrs[i] = addZero((9 - ipaddrs.length) * 4);
+                    count++;
+                }
+                else
+                {
+                    while(ipaddrs[i].length < 4)
+                    {
+                        ipaddrs[i] = "0" + ipaddrs[i];
+                    }
+                    ipaddrs[i] += ":";
+                }
+            }
+        }
+        else if(ipaddrs.length == 8)
+        {
+            for(var i = 0; i < 8; i++)
+            {
+                while(ipaddrs[i].length < 4)
+                {
+                    ipaddrs[i] = "0" + ipaddrs[i];
+                }
+                ipaddrs[i] += ":";
+            }
+        }
+        
+        return initaddr(ipaddrs, mask);
+    }
+
+export {
+  isIPv6,
+  isIPv4,
+  isIp,
+  getIPCount,//计算ip段的IP个数
+  compareIP,//比较ip大小
+  compareIPRange,//判断两个ip段是否有交集
+  iPIsInIpRange,//判断ip是否在某个段内
+  iPIsInIpRangeList,//查询IP地址
+  getIpSection,//根据掩码获取ip段
+  getIpRang,//根据例外IP获取有效的ip段
+  ipForm,//ip标准格式化
+  ipRangeForm,//ip段标准格式化
+  ipMaskForm,//ip掩码标准格式化
+  isValidRange,//ip段是否在有效的范围内
+  transitIPv4,
+  transitIPv6,
+  findNextIPv6
+}
