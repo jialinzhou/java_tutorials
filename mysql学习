@@ -97,3 +97,40 @@ extent到一个大的segment，确保数据良好的有序性。
 768字节的前缀，还有20字节的值存储这一列真实的长度并指向存储其余数据的overflow list。
 对于dynamic和compressed行格式：
 当一个变长的列选择external off-page存储，InnoDB在行中存储20字节的指针，剩下的存在overflow page。
+
+Redo log:
+redo log是基于硬盘的数据结构，用于在崩溃恢复期间纠正由未完成事务写入的数据。在正常操作过程中，redo log可以记录下来自于sql语句
+和低级API调用改变表数据的请求。在未预见的宕机之前，那些还没完成更新数据文件的修改操作，会被自动重新执行在MySQL实例初始化期间以及
+在接收连接之前。
+只需要重启MySQL服务器就可以从故障中恢复。InnoDB会自动检查日志并回滚数据库。InnoDB自动回滚在宕机发生时未提交的事务。（日志输出图在MySQL技术文档2594页。）
+InnoDB宕机恢复有以下几个步骤组成：
+1）表空间发现
+InnoDB通过表空间发现过程判断哪些表空间需要redo log application。
+**表空间发现：表空间发现
+如果在恢复期间，InnoDB遇到上个checkpoint之后写入的redo log，则这些redo log必须应用到受影响的表空间。在恢复过程中识别受影响
+表空间的过程称为tablespace discovery.
+表空间发现是通过扫描redo log,从上一个checkpoint到log文件结尾，寻找MLOG_FILE_NAME中的记录，这些记录是当一个表空间页被修改时写入的。
+一条MLOG_FILE_NAME记录包含表空间ID和文件名。
+在服务器启动时，InnoDB打开系统表空间和redo log。如果自从上个checkpoint之后有新的redo log记录，则基于MLOG_FILE_NAME记录打开受到影响的
+表空间文件。
+MLOG_FILE_NAME记录对于所有的持久化的表空间类型都可以写入，包括file-per-table表空间，general tablespaces,system tablespaces,undo log tablespaces。
+基于redo log的发现具有以下特点：
+1）只有自从上个checkpoint之后修改的表空间*.ibd文件会被访问。
+2）
+2）redo log application
+redo log application是在初始化期间以及在接收连接之前执行的。在宕机时，如果所有的改变都从buffer pool刷新到tablespaces(ibdata*和*.ibd文件)，
+则redo log application可以跳过。如果在启动时，redo log文件丢失了，InnoDB也会跳过redo log application.
+删除redo log来加速故障恢复是不推荐的，即使一些数据丢失是可以接受的。
+3）不完整事务的回滚
+不完整事务指的是那些宕机时还活跃的事务。回滚未完成事务所花费的时间可以是事务在中断之前处于活动状态的时间量的三倍或四倍，具体取决于服务器负载。
+你不能取消正在执行回滚的事务。在一些极端案例中，当回滚事务预期花费时间过长，通过启动InnoDB设置innodb_force_recovery为3或更大
+可以加快启动过程。
+4）change buffer merge
+将change buffer（系统表空间的一部分）中的更改应用于二级索引的叶子节点页，因为索引页将读取到buffer pool。
+5)purge
+删除有删除标记的记录，对于活跃的事务不再可见。
+
+redo log application之后的步骤不依赖于redo log（除了用于记录写入），并且与正常处理并行执行。在这些步骤中，只有不完整事务的
+回滚对于故障恢复是特殊的。最后两个步骤在正常处理期间被执行。
+在redo log application之后，InnoDB尝试尽可能早的接受连接，减少停机时间。事务回滚是由后台线程执行的，与新连接的事务并行执行。
+直到回滚完成之后，新连接才可能会遇到与已恢复事务有锁冲突。
