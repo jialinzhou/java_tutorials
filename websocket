@@ -1,0 +1,28 @@
+webSocket协议提供了一个标准化的方式在客户端和服务器之间，在单个tcp连接之上建立一个全双工的通信信道。
+它不同于http，但是在http之上工作，同样使用80和443端口。
+一个websocket交互始于一个带有Upgrade头的http请求，在这里是切换到websocket协议。
+请求：
+GET /spring-websocket-portfolio/portfolio HTTP/1.1
+Host: localhost:8080
+Upgrade: websocket 
+Connection: Upgrade 
+Sec-WebSocket-Key: Uc9l9TMkWGbHFD2qnFHltg==
+Sec-WebSocket-Protocol: v10.stomp, v11.stomp
+Sec-WebSocket-Version: 13
+Origin: http://localhost:8080
+响应：不是通常的200状态码
+HTTP/1.1 101 Switching Protocols 
+Upgrade: websocket
+Connection: Upgrade
+Sec-WebSocket-Accept: 1qVdfYHU9hPOl4JYYNXF623Gzn0=
+Sec-WebSocket-Protocol: v10.stomp
+
+
+握手成功之后，底层的tcp通道保持开放，客户端和服务端可以继续通信。
+
+http和websocket对比：
+1)http:在HTTP和REST中，一个应用可以看做有很多url组成。客户端访问这些url,以请求--响应的方式跟应用交互。
+服务器路由这些请求到对应的handler，基于http url,方法，和请求头。
+
+2）websocket:在websocket中，通常只有一个url用于最初的连接。之后，所有的应用信息流都在同一个tcp连接上。这是一个异步的，
+事件驱动的，消息架构。
