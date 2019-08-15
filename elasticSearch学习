@@ -1,0 +1,79 @@
+Node:启动一个elasticsearch实例就是启动一个node，互联节点的集合就是cluster。每个node都知道集群中所有其他node，
+并可以转发客户端的请求到合适的节点上。
+默认有以下几种类型的节点：master,data,ingest,machine learning.
+1)master node:一个节点将node.master设为true，这使得它有资格被选为master节点，可以控制集群。
+2)data node:将node.data设置为true，data node持有数据，并执行数据相关操作如CRUD，搜索和聚合操作。
+3)ingest node:将node.ingest设为true,此节点可以对文档应用ingest pipeline，可以被索引之前转换和丰富文档。由于
+负载较重，因此最好有专门的ingest node，并把master node和data node中的配置node.ingest设为false.
+
+**coordinating node(协调节点):搜索请求和批量索引请求都可能涉及到多个数据节点上的数据。
+对于一个Search request，通常会有两个阶段，这都是被协调节点协调的。
+在scatter phase(分散)，协调节点转发请求到持有目标数据的数据节点。每个数据节点本地执行请求，之后返回结果到协调节点。
+在gather phase(聚合)，协调节点reduce每个数据节点的结果为一个完整的结果集。（类似于大数据中map--reduce的过程）
+每个节点都可以认为是一个协调节点。这就意味着把node.master,node.data,node.ingest三个设置都设为false的节点将只担任
+协调节点的角色。这种情况下，这个协调节点需要有足够的内存和CPU来处理gather phase阶段的任务。
+
+Master node：master节点负责集群范围内的轻量级操作，例如创建或删除index，追踪哪些节点是集群的一部分，决定哪个分片分配到
+哪个节点上。有一个稳定的master节点对于集群健康来说很重要。
+**master节点必须有访问data/目录的权限，就像data节点一样。因为在这个目录下持久化了集群的状态。
+
+索引和搜索数据是CPU，内存和IO密集型的工作，会对节点的资源造成压力。为了确保master节点稳定，有专门的master节点和data节点比较好。
+master节点也可以作为协调节点，路由来紫儿客户端的索引和搜索请求到data节点。但是最好不要让master节点做这些协调工作。因为为了维持
+集群的稳定，master节点做的工作越少越好。
+
+
+HA高可用的集群需要至少三个master资格节点，它们中至少有两个不是voting-only节点。这样这个集群才能选出一个master节点，即使其中一个宕机。
+
+
+DATA Node：数据节点持有分片，这些分片包含已经索引的文档。数据节点处理数据相关的操作，比如CRUD，搜索和聚合操作。
+这些操作是IO，内存，CPU密集型的。监控这些资源，当这些数据节点过载时增加更多的数据节点是很重要的。
+有专用的数据节点的好处是分开了master和data角色。
+
+
+Ingest Node：执行一些预处理的任务。
+
+**只做协调功能的节点不是越多越好，data节点也可以充当协调的角色。
+
+
+data node在硬盘上维护的数据：
+1）分配到该节点的每个分片的分片数据
+2）分配到该节点的每个分片对应的索引元数据。
+3）集群范围内的元数据，比如配置和索引模板。
+
+master node在硬盘上维护的数据:
+1)集群中每个索引的元数据
+2）集群范围内的元数据，比如配置和索引模板。
+每个节点在启动时都会检查它的数据路径的内容。如果发现异常数据会拒绝启动。
+比如，node.data设为false的节点如果发现硬盘上有任何分片数据会拒绝启动。
+
+
+
+主分片的数量在索引创建的时候就确定了，但是副分片的数量在任何时候都可以改变，并且不会影响索引和查询操作。
+分片的大小和主分片的数量之间的平衡：分片越多，维护索引的开销越大。分片越大，当elasticSearch需要再平衡
+集群时在节点之间移动分片花费的时间越长。
+
+
+
+读写文档：
+在elasticSerach中，每个索引被分成多个分片，每个分片有多个副本。
+在文档增加或移除时，这些副本必须保持同步，否则会导致数据不一致。
+保持分片副本同步，并使它们提供读操作被称作data replication model.
+elasticSearch的数据复制模型是基于主-备模型。主分片是所有索引操作的入口。主分片负责同步数据给其他副本。
+
+***基本的写模型：在elasticSerach中，每个索引操作会通过routing到一个replication group，通常是基于document ID。
+一旦确定了replication group，这个索引操作会在内部被转发到这个组中的当前主分片。主分片负责校验操作并同步给其他副本。
+因为有些副本可能处于离线状态，因此主分片不需要同步到所有的副本。elasticSerach维护了一个应当接收操作的分片副本列表。
+这个列表被称作in-sync copies，并且是由master节点维护的。
+主分片的工作流如下：
+1.Validate incoming operation and reject it if structurally invalid (Example: have an object field where a number is expected)
+2.Execute the operation locally i.e. indexing or deleting the relevant document. This will also validate the content of fields and reject if needed (Example: a keyword value is too long for indexing in Lucene).
+3.Forward the operation to each replica in the current in-sync copies set. If there are multiple replicas, this is done in parallel.
+4.Once all replicas have successfully performed the operation and responded to the primary, the primary acknowledges the successful completion of the request to the client.
+
+****错误处理
+当主分片本身失败，则此主分片所在节点会发送信息通知master节点。当前索引操作会等待主节点重新选一个副本作为新的主分片。
+之后索引操作会被转发到新的主分片处理。注意，master也会监控各个节点的健康状况并可能主动降级主分片。这一般发生在
+持有主分片的节点由于网络问题与集群失连的情况。
+一旦在主分片上执行成功，主分片要处理在副本分片上执行可能出现的错误。副本分片出错，主分片会发送消息到master节点请求
+把出错的分片从in-sync中移除。只有master节点确认移除，主分片才会向客户端确认当前操作。注意，master节点也会告知
+另一个节点开启一个新的分片副本来恢复系统健康。
