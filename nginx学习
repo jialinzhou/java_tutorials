@@ -1,0 +1,76 @@
+introduction：
+nginx有一个master进程和几个worker进程。主进程的功能是读取和校验配置文件，并且维护worker进程。
+worker进程做实际的请求处理。
+nginx使用基于事件的模型和操作系统无关的机制去有效的在worker进程之间分配请求。
+worker进程的数量在配置文件中定义，可以根据可用cpu核数自动调整。
+
+nginx -s stop  fast shutdown
+nginx -s quit  graceful shutdown
+nginx -s reload  reloading the configuration file
+nginx -s reopen  reopening the log file
+
+
+**配置文件的结构：
+nginx是由模块组成的，这些模块是通过在配置文件中的指令控制的。指令被分成简单指令和块指令。
+简单指令由名字和参数组成，通过空格分开，并以";"结束。
+如果块指令可以有其他指令在花括号内，则称为context。
+配置文件中，位于所有context外部的指令被认为在main context中。
+events和http指令在main context中，server在http中，location在server中。
+
+
+
+
+
+
+1.Using nginx as HTTP load balancer
+在多个应用实例之间进行负载均衡是一个通用的技术，可以实现优化资源利用，最大化吞吐量，减少延迟，和确保容错。
+可以使用nginx作为一个非常有效的http负载均衡器，分散流量到几个应用服务器并提高性能，增加扩展性和可靠性。
+
+以下是nginx支持的负责均衡机制：
+(1)round-robin---请求到应用服务器是以轮询的方式分散的
+(2)least-connected---下一个请求被分配到有着最少活跃连接数的服务器
+(3)ip-hash---一个hash函数用于决定下一个请求被分配到哪台服务器(基于客户端的ip地址)
+
+默认负载均衡配置
+http {
+    upstream myapp1 {
+        server srv1.example.com;
+        server srv2.example.com;
+        server srv3.example.com;
+    }
+
+    server {
+        listen 80;
+
+        location / {
+            proxy_pass http://myapp1;
+        }
+    }
+}
+在以上的例子中，有3个相同的应用实例运行在srv1-srv3。当负载均衡方法没有指定，默认是round-robin。
+所有的请求被代理到服务器组 myapp1,nginx应用HTTP负载均衡分散请求。
+nginx反向代理实现包括HTTP,HTTPS,FastCGI,uwsgi,SCGI,memcached,gRPC.
+配置HTTPS的负载均衡，只需要使用"https"作为协议。
+
+最少连接负载均衡：
+    upstream myapp1 {
+        least_conn;
+        server srv1.example.com;
+        server srv2.example.com;
+        server srv3.example.com;
+    }
+
+ip_hash负载均衡：
+upstream myapp1 {
+    ip_hash;
+    server srv1.example.com;
+    server srv2.example.com;
+    server srv3.example.com;
+}
+
+权重负载均衡
+    upstream myapp1 {
+        server srv1.example.com weight=3;
+        server srv2.example.com;
+        server srv3.example.com;
+    }
