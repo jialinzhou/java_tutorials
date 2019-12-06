@@ -1,0 +1,70 @@
+介绍：
+zookeeper是一个集中化的服务，可以维护配置信息，命名，提供分布式同步，提供分组服务。
+zookeeper是一个高性能的用于分布式应用的协调服务。
+
+特点：
+1）简单：通过共享的分层命名空间协调分布式进程，命名空间类似于文件系统。命名空间由数据寄存器组成，称为znode。
+zookeeper数据存储在内存中，意味着zookeeper可以实现高吞吐量和低延迟。
+zookeeper实现特别重视高性能、高可用，严格顺序访问。
+性能方面意味着它可以被用于大型、分布式系统。
+可靠性方面可以避免单点故障。
+严格顺序访问意味着可以在客户端上实现复杂的同步原语。
+2）可复制
+就像它协调的分布式进程一样，zookeeper本身设计的可以在一组主机之间复制。
+组成zookeeper服务的这些服务器必须相互之间知道。他们在内存中维护了一个状态镜像，并且持久化存储了事务日志和快照。
+只要服务器中的大多数是可用的，zookeeper服务就是可用的。
+客户端连接到单台zookeeper服务器。客户端维持一个tcp连接，并通过这个连接发送请求，接收响应，获取watch事件，发送心跳。如果这个连接断开，则客户端将会连到一个不同的服务器。
+3）有序的
+ZooKeeper用一个反映所有ZooKeeper事务顺序的数字标记每个更新。后续操作可以使用该命令来实现更高级别的抽象，例如同步原语。
+4）很快
+在“读取为主”的工作负载中，它特别快。ZooKeeper应用程序可在数千台计算机上运行，​​并且在读取比写入更为常见的情况下，其性能最佳，比率约为10：1。
+
+
+ZNodes:
+zookeeper树状结构中的每个节点都被称作znode.znode维护了一个状态结构，包括用于数据变更、acl变更的版本号。这个状态结构也有时间戳。版本号结合时间戳可以让zookeeper校验缓存，并协调更新。每次znode的数据改变，版本号增加。
+例如，任何时候客户端检索数据，它都会获得数据的版本。当客户端执行更新或删除，它必须提供要改变数据的版本。
+如果提供的版本与数据实际的版本不匹配，更新将会失败。
+
+watches：
+客户端可以在znode上设置watches。对于这个znode的改变会触发设置的watch并清除这个watch。当watch触发，zookeeper发送给客户端一个通知。
+
+Data Access：
+命名空间中每个znode存储的数据都是原子读写的。读会获取这个znode的所有数据，写会替换所有数据。每个节点都有一个ACL限制谁可以做什么。
+zookeeper设计不是用来作为一般的数据库或大对象存储。它是用来管理协调数据。这些数据可以是配置、状态信息等。
+这些协调数据的特点是相对较小：几kB。zookeeper客户端和服务器实现会做健康检查来确保znode存储小于1M数据，但是实际的数据要平均更小于1M。
+
+Ephemeral Nodes：
+临时节点，只要创建临时节点的会话还有效，节点就会存在。当session结束，znode被删除。因为这个原因，临时节点不允许有子节点。
+Sequence Nodes -- Unique Naming
+有序节点：当创建znode时可以请求zookeeper在path之后添加单调递增的计数器。也就是"<path>0000000001"。
+
+
+zookeeper session:
+zookeeper客户端通过使用语言绑定创建一个handle来和zookeeper服务建立session。
+当客户端从zookeeper服务得到handle，zookeeper创建一个zookeeper session，用64位数字表示并分配给客户端。
+如果客户端连接到一个不同的zookeeper server，它会发送这个session id作为连接握手的一部分。
+作为一种安全措施，服务器会为session id创建一个密码，每个server都能校验。这个密码和session id会在建立session的时候一起发送给客户端。无论何时客户端跟一个新的server重新建立session，客户端都会发送这个密码和session id。
+
+zookeeper客户端库可以调用的其中一个参数创建session就是session timeout，以毫秒为单位。客户端发送带有timeout的请求，服务器响应它可以给客户端的timeout。当前的实现要求，timeout最少2倍tickTime(在服务器配置文件配置),最大20倍tickTime。
+
+当客户端与正在提供服务的集群断开，它会开始在session创建时指定的服务器列表。最终，当客户端和最少一台服务器重新建立连接，session会再次设为“connected”状态(如果重连时间在session timeout时间内)。如果重连在session timeout时间之后，则为“expired”状态。
+
+session expired是由zookeeper集群本身管理的，而不是客户端。当zk客户端与集群建立session，并提供了timeout值。集群使用这个timeout值决定什么时候客户端session过期。过期发生在当集群在指定的session timeout时间内没有收到客户端的心跳。session过期时，集群会删除所有这个session持有的临时节点并立刻通知所有对这些节点注册watch的客户端。
+
+ZooKeeper Watches：
+zookeeper中的所有读操作--getData(),getChildren(),exists()都可以设置watch。
+watch的定义：watch事件是一次性的触发事件。当数据发生改变时，发送给设置watch的客户端。有三个关键点：
+1）One-time trigger
+当数据发生改变时，一个watch事件会被发送到客户端。例如，如果客户端执行getData("/znode1", true)，并且之后/znode1数据改变或被删除，客户端会收到/znode1的watch事件。如果/znode1再次改变，没有watch事件会被发送，除非客户端又执行了一次read操作并设置了新的watch。
+2）Sent to the client
+这就隐含了在客户端收到对于这次更新操作的成功返回码之前，watch事件是在发送到客户端的路上，还没到达客户端。watch事件是异步发送给watcher的。zookeeper提供了一个有序保证：客户端只有在首先收到watch事件之后，才能看到节点改变后的数据。网络延迟或其他因素可能导致不同客户端看到watch事件和返回码的时间不一样。但是重要的是不同客户端看到的顺序都是一样的。
+3）The data for which the watch was set
+这指出一个znode可能是以不同的方式改变。有两种watch事件：data watches和child watches。getData() and exists() set data watches。getChildren() sets child watches
+ setData() 对znode触发data watch
+ create() 对刚被创建的znode触发data watch，对父znode触发child watch。
+ delete()对被删除的znode触发data watch和child watch(因为会导致没有children)，对父znode触发child watch。
+ watch事件是由客户端连接的zookeeper服务器本地维护的。这就可以使得设置、维护和分发watch事件轻量级。
+
+ 关于watch需要记住的几点：
+ 1）watch事件是一次性的。如果你收到了一个watch事件，并且在之后还想被通知，你必须再设置一个watch。
+ 2）因为watch事件是一次性的，并且在得到watch事件和发送一个新的设置watch请求之间有延迟，因此你可能不能获取到znode的所有数据改变。
