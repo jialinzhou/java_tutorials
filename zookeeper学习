@@ -68,3 +68,89 @@ watch的定义：watch事件是一次性的触发事件。当数据发生改变�
  关于watch需要记住的几点：
  1）watch事件是一次性的。如果你收到了一个watch事件，并且在之后还想被通知，你必须再设置一个watch。
  2）因为watch事件是一次性的，并且在得到watch事件和发送一个新的设置watch请求之间有延迟，因此你可能不能获取到znode的所有数据改变。
+
+--------
+
+zookeeper提供的功能：
+ 1）开箱即用的功能：命名服务、配置、组管理
+ 命名服务和配置是zookeeper提供的两个主要应用，之间通过api提供。
+ 另一个直接提供的功能是组管理。组是通过一个znode表示的。组员可以在组znode节点下创建临时节点。
+ 组员节点发生异常时会被zookeeper检测到从而移除。
+
+ 2）Barriers
+ 分布式系统使用屏障阻塞一组节点执行直到某个条件满足之后所有节点才被允许继续执行。
+ zookeeper通过指定一个屏障znode来实现屏障功能。如果屏障节点存在，这个屏障就会存在。下面是一些伪代码：
+ （1）客户端对屏障znode调用zookeeper的api exists()函数，并设置watch事件。
+ （2）如果exists()返回false,屏障消失，客户端继续执行
+ （3）否则，如果exists()返回true，客户端等待zookeeper发来屏障节点znode的watch事件。
+ （4）当watch事件触发，客户端再次重新调用exists()方法，直到屏障节点被移除。
+
+ 双屏障：
+ 双屏障可使多个客户端在计算开始和结束实现同步。当有足够的进程进入到屏障时，进程开始计算。当进程都完成计算时离开屏障。
+ 下面的伪代码中使用b作为屏障znode。每个客户端进程p在开始时注册为b节点的子节点，在离开时删除节点。伪代码中约定只有注册节点的客户端数量达到x所有进程才会开始计算，x可以根据自己需要定义。
+ Enter：
+1.Create a name n = b+“/”+p
+
+2.Set watch: exists(b + ‘‘/ready’’, true)
+
+3.Create child: create( n, EPHEMERAL)
+
+4.L = getChildren(b, false)
+
+5.if fewer children in L than x, wait for watch event
+
+6.else create(b + ‘‘/ready’’, REGULAR)
+
+Leave:
+1.L = getChildren(b, false)
+
+2.if no children, exit
+
+3.if p is only process node in L, delete(n) and exit
+
+4.if p is the lowest process node in L, wait on highest process node in P
+
+5.else delete(n) if still exists and wait on lowest process node in L
+
+6.goto 1
+
+在enter阶段，所有进程都对b/ready节点设置watch事件，第p个进程创建一个临时节点作为屏障节点的子节点b+“/”+p。
+每个进程除了最后一个，会被阻塞等待b/ready节点创建。创建第x个节点的进程，也就是最后一个进程会看到b节点的x个子节点并创建ready节点，唤醒其他进程。注意：等待进程在等待之前执行完任务，然后只有在快退出时才等待。因此等待是高效的。
+
+
+
+
+Queues：
+分布式队列是一种常见的数据结构。使用zookeeper实现分布式队列，首先指定一个znode持有队列，队列节点。
+
+
+Locks：
+分布式锁是全局同步的，意味着任何时间点都不可能有两个客户端持有相同的锁。伪代码如下：
+1.调用create()方法创建“_locknode_/lock-”并且设置为临时有序节点
+2.对lock节点调用getChildren()方法不设置watch事件(这对避免羊群效应很重要)
+3.如果在第一步中创建的路径名有最小的序列号后缀，则此客户端持有锁
+4.客户端对锁节点目录下序列号比自身小的节点调用exists()方法设置watch事件
+5.如果exists()返回false，跳到第二步。否则，等待上一步的watch通知之后返回第二步。
+释放锁很简单：客户端只需要删除自身创建的节点就好。
+注意：移除一个节点只会让一个客户端唤醒，因为每个节点只会被一个节点watch，可以避免羊群效应
+没有轮询和超时问题。
+
+共享锁：
+
+
+
+两阶段提交：
+两阶段提交协议是一个算法让分布式系统中的所有客户端一致同意提交或回滚事务。
+
+
+
+leader选举：
+利用zookeeper实现leader选举的简单方式是使用有序、临时znode，这些znode代表投票客户端。具体的思想是，有个znode
+"/election",因此每个znode创建子节点"/election/n_"。创建最小序列号的znode就是leader.
+
+
+
+
+zookeeper部署：
+1）机器数，为了保证zookeeper服务的正常可用，必须保证正常运行的机器数未大多数。总部署的机器数量通常是2XF+1,其中F为可以容忍有故障的机器数。
+2）zookeeper的事务日志很大程度上会影响性能。zookeeper在返回响应之前会同步事务日志到存储设备。一个专用的事务日志存储设备对于性能来说很重要。
