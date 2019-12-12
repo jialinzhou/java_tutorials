@@ -1,0 +1,10 @@
+**dubbo服务提供者注册的是服务的地址
+Register dubbo service org.apache.dubbo.demo.DemoService url dubbo://10.135.188.109:20880/org.apache.dubbo.demo.DemoService?anyhost=true&application=demo-provider&bind.ip=10.135.188.109&bind.port=20880&deprecated=false&dubbo=2.0.2&dynamic=true&generic=false&interface=org.apache.dubbo.demo.DemoService&methods=sayHello,sayHelloAsync&pid=16752&qos.port=22222&release=&side=provider&timestamp=1576115512275 to registry registry://127.0.0.1:2181/org.apache.dubbo.registry.RegistryService?application=demo-provider&dubbo=2.0.2&pid=16752&qos.port=22222&registry=zookeeper&timestamp=1576115512269, dubbo version: , current host: 10.135.188.109
+
+调用方从注册中心获取地址并直接通过netty调用
+dubbo://localhost:20880/org.apache.dubbo.demo.DemoService?application=demo-consumer&check=false&codec=dubbo&heartbeat=60000&init=false&interface=org.apache.dubbo.demo.DemoService&pid=10384&qos.port=33333&register.ip=10.135.188.109&remote.application=&side=consumer&sticky=false
+
+注册中心负责服务地址的注册与查找，相当于目录服务，服务提供者和消费者只在启动时与注册中心交互，注册中心不转发请求，压力较小。
+监控中心负责统计各服务调用次数，调用时间等，统计先在内存汇总后每分钟一次发送到监控中心服务器，并以报表展示。
+服务提供者向注册中心注册其提供的服务，并汇报调用时间到监控中心，此时间不包含网络开销。
+服务消费者向注册中心获取服务提供者地址列表，并根据负载算法直接调用提供者，同时汇报调用时间到监控中心，此时间包含网络开销。
