@@ -134,3 +134,8 @@ redo log application之后的步骤不依赖于redo log（除了用于记录写�
 回滚对于故障恢复是特殊的。最后两个步骤在正常处理期间被执行。
 在redo log application之后，InnoDB尝试尽可能早的接受连接，减少停机时间。事务回滚是由后台线程执行的，与新连接的事务并行执行。
 直到回滚完成之后，新连接才可能会遇到与已恢复事务有锁冲突。
+
+--表级锁的争用状态变量
+show status like 'table%';
+--行级锁的争用状态变量
+show status like 'innodb_row_lock%'
