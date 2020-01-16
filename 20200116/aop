@@ -1,0 +1,21 @@
+在一些项目中，系统间交互不通过接口调用和消息队列，而是通过数据库直接访问。
+问其原因，回答道："项目工期太紧张，直接访问数据库，简单又快捷"。
+一般情况下，直接通过数据访问的方式是不会有问题的。但是，一旦发生竞态，就会导致数据不同步。有人会说，可以考虑使用同一分布式锁解决该问题。是的，这种解决方案没有问题，只是又在系统间共享了分布式锁。
+
+直接通过数据库交互的缺点：
+
+直接暴露数据库表，容易产生数据安全问题；
+多个系统操作同一数据库表，容易造成数据库表数据混乱；
+操作同一个数据库表的代码，分布在不同的系统中，不便于管理和维护；
+具有数据库表这样的强关联，无法实现系统间的隔离和解耦。
+
+
+ES桶的原理是：基于条件来划分文档。
+桶能让我们划分文档到有意义的集合，但是最终我们需要的是对这些桶内的文档进行一些指标的计算。分桶是一种达到目的的手段：它提供了一种给文档分组的方法来让我们可以计算感兴趣的指标。
+
+
+spring aop ：org.springframework.beans.factory.support.AbstractAutowireCapableBeanFactory#applyBeanPostProcessorsAfterInitialization
+
+org.springframework.aop.framework.DefaultAopProxyFactory#createAopProxy
+
+spring aop是通过BeanPostProcessor实现的，通过在里面实现代理对象。
